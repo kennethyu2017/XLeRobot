@@ -288,14 +288,14 @@ def main():
         # from lerobot.robots.so100_follower import SO100Follower, SO100FollowerConfig
         # from lerobot.teleoperators.keyboard import KeyboardTeleop, KeyboardTeleopConfig
 
-        from lerobot.robots.so_follower.so_follower import SO100Follower
-        from lerobot.robots.so_follower.config_so_follower import SO100FollowerConfig
+        from lerobot.robots.so_follower import (SO100Follower,
+                                                SO100FollowerConfig )
         
         from lerobot.teleoperators.keyboard.teleop_keyboard import KeyboardTeleop
         from lerobot.teleoperators.keyboard.configuration_keyboard import KeyboardTeleopConfig
                 
         # Get port
-        port = input("Please enter SO100 robot USB port (e.g.: /dev/ttyACM0): ").strip()
+        port = input("Please enter SO101 robot USB port (e.g.: /dev/ttyACM0): ").strip()
         
         # If directly press enter, use default port
         if not port:
@@ -313,7 +313,7 @@ def main():
         keyboard = KeyboardTeleop(keyboard_config)
         
         # Connect devices
-        robot.connect()
+        robot.connect(calibrate=False)
         keyboard.connect()
         
         print("Devices connected successfully!")

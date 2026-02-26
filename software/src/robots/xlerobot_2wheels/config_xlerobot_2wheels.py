@@ -18,7 +18,7 @@ from lerobot.cameras.configs import CameraConfig, Cv2Rotation, ColorMode
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 from lerobot.cameras.realsense import RealSenseCamera, RealSenseCameraConfig
 
-from ..config import RobotConfig
+from lerobot.robots.config import RobotConfig
 
 
 def xlerobot_2wheels_cameras_config() -> dict[str, CameraConfig]:
@@ -46,19 +46,23 @@ def xlerobot_2wheels_cameras_config() -> dict[str, CameraConfig]:
         # ),
     }
 
-
+#TODO: draccus is tedious. try to use ml_collections.ConfigDict to replace it.kenn.
 @RobotConfig.register_subclass("xlerobot_2wheels")
 @dataclass
 class XLerobot2WheelsConfig(RobotConfig):
     
-    port1: str = "/dev/ttyACM0"  # port to connect to the bus (so101 + head camera)
-    port2: str = "/dev/ttyACM1"  # port to connect to the bus (arms + 2 wheels)
+    port_left: str  # = "/dev/ttyACM0"  # port to connect to the bus (left_so101 + head camera)
+    port_right: str # = "/dev/ttyACM1"  # port to connect to the bus (right_so101 + 2 wheels)
+    teleop_keys: dict[str, str]
+
+    # TODO: use same config params for left and right arms. maybe separate? kenn.
     disable_torque_on_disconnect: bool = True
 
     # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
     # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
     # the number of motors in your follower arms.
-    max_relative_target: int | None = None
+    # max_relative_target: int | None = None
+    max_relative_target: float | dict[str, float] | None = None
 
     cameras: dict[str, CameraConfig] = field(default_factory=xlerobot_2wheels_cameras_config)
 
@@ -69,20 +73,20 @@ class XLerobot2WheelsConfig(RobotConfig):
     wheel_radius: float = 0.05  # Wheel radius in meters
     wheelbase: float = 0.25     # Distance between left and right wheels in meters
 
-    teleop_keys: dict[str, str] = field(
-        default_factory=lambda: {
-            # Movement (differential drive)
-            "forward": "i",
-            "backward": "k",
-            "rotate_left": "u",
-            "rotate_right": "o",
-            # Speed control
-            "speed_up": "n",
-            "speed_down": "m",
-            # quit teleop
-            "quit": "b",
-        }
-    )
+    # teleop_keys: dict[str, str]  = \
+        # = field(
+        # default_factory=lambda: {
+        #     # Movement (differential drive)
+        #     "forward": "i",
+        #     "backward": "k",
+        #     "rotate_left": "u",
+        #     "rotate_right": "o",
+        #     # Speed control
+        #     "speed_up": "n",
+        #     "speed_down": "m",
+        #     # quit teleop
+        #     "quit": "b",
+        # }
 
 
 

@@ -1,0 +1,24 @@
+robot:
+  type: xlerobot_2wheels
+  id: xlerobot_2wheels_host
+  calibration_dir: ./software/calibration_result
+
+  port_left: /dev/ttyWeshareLeft
+  port_right: /dev/ttyWeshareRight
+
+#  max_relative_target:
+  teleop_keys:
+      # Movement (differential drive)
+      forward: i
+      backward: k
+      rotate_left: u
+      rotate_right: o
+      # Speed control
+      speed_up: n
+      speed_down: m
+      # quit teleop
+      quit: b
+
+
+
+

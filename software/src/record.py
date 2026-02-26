@@ -135,8 +135,8 @@ def reset_follower_position(robot, target_position, steps=50, delay=0.015, start
     """
     # Read the current position
 
-    left_current_position_dict = robot.bus1.sync_read("Present_Position")
-    right_current_position_dict = robot.bus2.sync_read("Present_Position")
+    left_current_position_dict = robot.bus_left.sync_read("Present_Position")
+    right_current_position_dict = robot.bus_right.sync_read("Present_Position")
     if start_position is not None:
         left_current_position, right_current_position = start_position[0:6], start_position[6:12]
     else:
