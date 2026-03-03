@@ -10,12 +10,18 @@ import logging
 import traceback
 from dataclasses import dataclass
 import draccus
+from typing import cast,List,Dict
 
 from lerobot.robots.so_follower import (SO100Follower,
                                         SO100FollowerConfig)
 
 from lerobot.teleoperators.keyboard.teleop_keyboard import KeyboardTeleop
 from lerobot.teleoperators.keyboard.configuration_keyboard import KeyboardTeleopConfig
+
+from lerobot.robots import (  # noqa: F401
+#     Robot,
+    RobotConfig,
+)
 
 from software.src.robots.xlerobot_2wheels import XLerobot2WheelsConfig
 
@@ -25,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Joint calibration coefficients - manually edit
 # Format: [joint_name, zero_position_offset(degrees), scale_factor]
+# TODO: maybe due to un-enough torque of ST3215, the actuator can not move to target precisely.
 JOINT_CALIBRATION = {
     'shoulder_pan': (6.0, 1.0),      # Joint1: zero position offset, scale factor
     'shoulder_lift': (2.0, 0.97),     # Joint2: zero position offset, scale factor
@@ -172,6 +179,69 @@ def move_to_zero_position(robot, duration=3.0, kp=0.5):
     
     print("Robot has moved to zero position")
 
+
+# using linear interpolation.
+def move_to_zero_position_linear_interpolation(robot, duration=3.0, kp=0.5):
+
+    print("Using P control to slowly move robot to zero position...")
+
+    # Zero position targets
+    zero_positions = {
+        'shoulder_pan': 0.0,
+        'shoulder_lift': 0.0,
+        'elbow_flex': 0.0,
+        'wrist_flex': 0.0,
+        'wrist_roll': 0.0,
+        'gripper': 0.0
+    }
+
+    # Calculate control steps
+    control_freq = 20 # 50  # 50Hz control frequency
+    total_steps = int(duration * control_freq)
+    step_time = 1.0 / control_freq
+    current_obs = robot.get_observation()
+
+    print(f"Will move from cur pos:{current_obs} to zero position:{zero_positions} \n"
+          f"in {duration} seconds using P control,\n"
+          f" control frequency: {control_freq}Hz, \n"
+          f" proportional gain: {kp}")
+
+
+    joint_ds: Dict[str, float] = {}
+    for _name, _pos in zero_positions.items():
+        error = float(_pos - current_obs[_name+'.pos'])
+        joint_ds[_name] = error / total_steps
+
+    print(f'joint delta pos per step : {joint_ds}')
+
+    action_list:List[Dict[str, float]] = []
+    # Convert control output to position command
+    for step in range(total_steps):
+        action = {}
+        for _name in zero_positions:
+            action[f"{_name}.pos"] = current_obs[_name+'.pos'] + joint_ds[_name] * step
+        action_list.append(action)
+
+    print(f'action list first: {action_list[0]}\n'
+          f'action list last: {action_list[-1]}')
+
+    for step in range(total_steps):
+        # Send action to robot
+        action = action_list.pop(0)
+        robot.send_action(action)
+
+        # Display progress
+        if step % (control_freq // 2) == 0:  # Display progress every 0.5 seconds
+            progress = (step / total_steps) * 100
+            print(f"Moving to zero position progress: {progress:.1f}%")
+
+        # TODO: not include the bus delay time. inaccurate for control freq. kenn.
+        time.sleep(step_time)
+        # time.sleep(0.1)
+
+    print("Robot has moved to zero position")
+
+
 def return_to_start_position(robot, start_positions, kp=0.5, control_freq=50):
     """
     Use P control to return to start position
@@ -262,17 +332,25 @@ def p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, c
         try:
             # Get keyboard input
             keyboard_action = keyboard.get_action()
-            
             if keyboard_action:
                 # Process keyboard input, update target positions
                 # for key, value in keyboard_action.items():
                 for key in keyboard_action:
                     if key == 'x':
                         # Exit program, first return to start position
-                        print("Exit command detected, returning to start position...")
-                        return_to_start_position(robot, start_positions, 0.2, control_freq)
+                        print(f"Exit command detected, returning to start position:{start_positions}")
+                        return_to_start_position(robot, start_positions, 0.1, control_freq)
                         time.sleep(1.)
                         return
+
+                    # added by kenn.
+                    # Detect Ctrl+C specifically
+                    # '\x03' is the character code generated when Ctrl and C are pressed together
+                    # WOOPS, can not work :Raw Input: With suppress=True, the listener often catches
+                    # the "raw" key events before the system has a chance to map them to "cooked" terminal
+                    # escape sequences like \x03.
+                    # elif key == '\x03':
+                    #     raise KeyboardInterrupt("Ctrl+C detected! Exiting...")
 
                     elif key in joint_controls:
                         joint_name, delta = joint_controls[key]
@@ -294,7 +372,7 @@ def p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, c
 
                         target_positions[joint_name] = new_target
                         print(f"Updated target position {joint_name}: {current_target} -> {new_target}")
-            
+
             # Get current robot state
             current_obs = robot.get_observation()
             
@@ -304,8 +382,10 @@ def p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, c
                 if key.endswith('.pos'):
                     motor_name = key.removesuffix('.pos')
                     # Apply calibration coefficients
-                    calibrated_value = apply_joint_calibration(motor_name, value)
-                    current_positions[motor_name] = calibrated_value
+                    # TODO: comment temply. kenn.
+                    # calibrated_value = apply_joint_calibration(motor_name, value)
+                    # current_positions[motor_name] = calibrated_value
+                    current_positions[motor_name] = value
             
             # P control calculation
             # robot_action = {}
@@ -341,13 +421,13 @@ def p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, c
 class XConfig:
     # teleop: TeleoperatorConfig | None = None
     teleop: None = None
-    robot: XLerobot2WheelsConfig | None = None
+    robot: RobotConfig | None = None
 
-    def __post_init__(self)-> XLerobot2WheelsConfig | None:
-        if bool(self.teleop) == bool(self.robot):
-            raise ValueError("Choose either a teleop or a robot.")
-
-        self.device_cfg = self.robot if self.robot else self.teleop
+    # def __post_init__(self)-> XLerobot2WheelsConfig | None:
+    #     if bool(self.teleop) == bool(self.robot):
+    #         raise ValueError("Choose either a teleop or a robot.")
+    #
+    #     self.device_cfg = self.robot if self.robot else self.teleop
 
 
 @draccus.wrap()
@@ -389,10 +469,10 @@ def main(cfg:XConfig):
     while len(port) == 0:
         match input("Please choose left or right SO101 arm: [l/r]").strip().lower():
             case 'l':
-                port=cfg.robot.port_left
+                port=cast(XLerobot2WheelsConfig, cfg.robot).port_left
                 logger.info(f'choose left arm.')
             case 'r':
-                port=cfg.robot.port_right
+                port=cast(XLerobot2WheelsConfig, cfg.robot).port_right
                 logger.info(f'choose right arm.')
             case _:
                 logger.warning(f'got illegal arm choice, only accept "l" or "r" ')
@@ -407,11 +487,27 @@ def main(cfg:XConfig):
     # else:
     #     print(f"Connecting to port: {port}")
 
-    robot_config = SO100FollowerConfig(port=port)
+    robot_config = SO100FollowerConfig(port=port,id=cfg.robot.id, calibration_dir=cfg.robot.calibration_dir)
     robot = SO100Follower(robot_config)
     if not robot.calibration:
         raise ValueError(f'can not load robot calibration file in path:{robot.calibration_dir}.'
                          f' should calibrate robot first.')
+    else:
+        print(f'load robot calibration from file: {robot.calibration_dir}')
+                    # f'loaded calibration:{robot.calibration}')
+    # we make some name conversion.
+    calibration_renamed = {}
+    for k, v in robot.calibration.items():
+        if k.startswith('left_arm_'):
+            calibration_renamed[k.removeprefix('left_arm_')]=v
+        elif k.startswith('right_arm_'):
+            calibration_renamed[k.removeprefix('right_arm_')]=v
+        else:
+            calibration_renamed[k]=v
+
+    robot.calibration = calibration_renamed
+    robot.bus.calibration=calibration_renamed
+    print(f'SO101 arm calibration: {robot.calibration} ')
 
     # Configure keyboard
     keyboard_config = KeyboardTeleopConfig()
@@ -452,19 +548,9 @@ def main(cfg:XConfig):
             print(f"  {joint_name}: {position}°")
         
         # Move to zero position
-        move_to_zero_position(robot, duration=3.0, kp=0.5)
-        
-        # Initialize target positions to current positions (integers)
-        target_positions = {
-        'shoulder_pan': 0.0,
-        'shoulder_lift': 0.0,
-        'elbow_flex': 0.0,
-        'wrist_flex': 0.0,
-        'wrist_roll': 0.0,
-        'gripper': 0.0
-          }
-        
-        
+        # move_to_zero_position(robot, duration=6.0, kp=0.3)
+        move_to_zero_position_linear_interpolation(robot, duration=5.0, kp=0.3)
+
         print("Keyboard control instructions:")
         print("- Q/A: Joint1 (shoulder_pan) decrease/increase")
         print("- W/S: Joint2 (shoulder_lift) decrease/increase")
@@ -479,7 +565,17 @@ def main(cfg:XConfig):
         
         # Start P control loop
         # TODO: put into Thread. kenn.
-        p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, control_freq=50)
+        # Initialize target positions to zero positions (integers)
+        zero_positions = {
+            'shoulder_pan': 0.0,
+            'shoulder_lift': 0.0,
+            'elbow_flex': 0.0,
+            'wrist_flex': 0.0,
+            'wrist_roll': 0.0,
+            'gripper': 0.0
+        }
+        p_control_loop(robot, keyboard, zero_positions, start_positions, kp=0.3, control_freq= 20)
+        # p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, control_freq=50)
         
         # Disconnect
         # robot.disconnect()
