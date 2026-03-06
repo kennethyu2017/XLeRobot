@@ -111,7 +111,7 @@ def p_control_loop(*,
     """
     # single arm.
     assert len(robots) == 1
-    arm_name, arm = robots.popitem()
+    arm_name, arm = next(iter(robots.items()))
     assert len(arm_start_positions) == 1
     start_positions = arm_start_positions[arm_name]
     assert len(arm_target_positions) == 1

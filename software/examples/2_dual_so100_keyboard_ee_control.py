@@ -489,11 +489,12 @@ def p_control_loop(*,
             
         except KeyboardInterrupt:
             print("User interrupted program")
-            break
+            raise
+
         except Exception as e:
             print(f"P control loop error: {e}")
             traceback.print_exc()
-            break
+            raise
 
 def main():
     """Main function"""

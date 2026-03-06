@@ -208,7 +208,8 @@ def return_to_start_position(*,
 										   cur_pos=renamed,
 										   kp=kp, req_total_error=True)
 			# Check if start position is reached
-			if step % control_freq == 0:
+			if True:
+			# if step % control_freq == 0:
 				print(f'{_arm_name} back to start pos total_error: {total_error}')
 
 			if total_error < 2.0:  # If total error is less than 2 degrees, consider reached
@@ -367,6 +368,7 @@ def keyboard_teleop_task(cfg: XConfig,
 		print("2. Is the USB port correct")
 		print("3. Do you have sufficient permissions to access USB device")
 		print("4. Is the robot correctly configured")
+
 
 	finally:
 		# Disconnect

@@ -217,59 +217,6 @@ def move_to_zero_position(robot, duration=3.0, kp=0.5):
     
     print("Robot has moved to zero position")
 
-def return_to_start_position(robot, start_positions, kp=0.5, control_freq=50):
-    """
-    Use P control to return to start position
-    
-    Args:
-        robot: Robot instance
-        start_positions: Start joint positions dictionary
-        kp: Proportional gain
-        control_freq: Control frequency (Hz)
-    """
-    print("Returning to start position...")
-    
-    control_period = 1.0 / control_freq
-    max_steps = int(5.0 * control_freq)  # Maximum 5 seconds
-    
-    for step in range(max_steps):
-        # Get current robot state
-        current_obs = robot.get_observation()
-        current_positions = {}
-        for key, value in current_obs.items():
-            if key.endswith('.pos'):
-                motor_name = key.removesuffix('.pos')
-                current_positions[motor_name] = value  # Don't apply calibration coefficients
-        
-        # P control calculation
-        robot_action = {}
-        total_error = 0
-        for joint_name, target_pos in start_positions.items():
-            if joint_name in current_positions:
-                current_pos = current_positions[joint_name]
-                error = target_pos - current_pos
-                total_error += abs(error)
-                
-                # P control: output = Kp * error
-                control_output = kp * error
-                
-                # Convert control output to position command
-                new_position = current_pos + control_output
-                robot_action[f"{joint_name}.pos"] = new_position
-        
-        # Send action to robot
-        if robot_action:
-            robot.send_action(robot_action)
-        
-        # Check if start position is reached
-        if total_error < 2.0:  # If total error is less than 2 degrees, consider reached
-            print("Returned to start position")
-            break
-        
-        time.sleep(control_period)
-    
-    print("Return to start position completed")
-
 # Independent video streaming function (no robot control)
 def video_stream_loop(model, cap, target_objects=None):
     if target_objects is None:
