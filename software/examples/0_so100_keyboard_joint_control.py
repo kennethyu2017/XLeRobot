@@ -26,7 +26,7 @@ from lerobot.robots import (  # noqa: F401
 from software.src.robots.xlerobot_2wheels import XLerobot2WheelsConfig
 
 from software.examples.example_utils import (move_by_linear_interpolation,
-                                             p_control_helper, return_to_start_position)
+                                             p_control_helper, SO101_arm_return_to_start_position)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -250,7 +250,7 @@ def p_control_loop(robot, keyboard, target_positions, start_positions, kp=0.5, c
                     if key == 'x':
                         # Exit program, first return to start position
                         print(f"Exit command detected, returning to start position:{start_positions}")
-                        return_to_start_position(robot, start_positions, 0.1, control_freq)
+                        SO101_arm_return_to_start_position(robot, start_positions, 0.1, control_freq)
                         time.sleep(1.)
                         return
 

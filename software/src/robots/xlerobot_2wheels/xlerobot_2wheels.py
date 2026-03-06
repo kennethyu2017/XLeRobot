@@ -426,7 +426,9 @@ class XLerobot2Wheels(Robot):
         right_wheel_speed = (x + theta_rad * wheelbase / 2) / wheel_radius
         
         # Convert wheel speeds from rad/s to deg/s.
-        left_wheel_degps = left_wheel_speed * (180.0 / np.pi)
+        # TODO: should set left wheel to rotate reverse. kenn.
+        left_wheel_degps = - left_wheel_speed * (180.0 / np.pi)
+        # left_wheel_degps = left_wheel_speed * (180.0 / np.pi)
         right_wheel_degps = right_wheel_speed * (180.0 / np.pi)
 
         # Scaling

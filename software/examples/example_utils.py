@@ -172,10 +172,10 @@ def inverse_kinematics(x, y, l1=0.1159, l2=0.1350):
 	return joint2_deg, joint3_deg
 
 
-def return_to_start_position(*,
-		robots: Dict[str, SO101Follower],
-		arm_start_positions: Dict[str, Dict[str, float]],
-		kp=0.2, control_freq=20):
+def SO101_arm_return_to_start_position(*,
+									   robots: Dict[str, SO101Follower],
+									   arm_start_positions: Dict[str, Dict[str, float]],
+									   kp=0.2, control_freq=20):
 	"""
 	Use P control to return to start position
 

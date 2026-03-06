@@ -6,7 +6,11 @@ robot:
   port_left: /dev/ttyWeshareLeft
   port_right: /dev/ttyWeshareRight
 
-#  max_relative_target:
+  wheel_radius: 0.05  # Wheel radius in meters
+  wheelbase: 0.25     # Distance between left and right wheels in meters
+
+
+  #  max_relative_target:
   teleop_keys:
       # Movement (differential drive)
       forward: i

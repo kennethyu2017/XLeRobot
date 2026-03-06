@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Union, Tuple
 
 from lerobot.robots.robot import Robot
-from lerobot.robots.so101_follower.config_so101_follower import SO101FollowerConfig
+from lerobot.robots.so_follower import (SO101FollowerConfig)
 from lerobot.robots.utils import make_robot_from_config
 import numpy as np
 from lerobot.cameras.realsense.configuration_realsense import RealSenseCameraConfig
@@ -81,7 +81,7 @@ class SO101Kinematics:
         
         # If target point is less than minimum workspace (|l1-l2|), scale it
         r_min = abs(l1 - l2)
-        if r < r_min and r > 0:
+        if 0 < r < r_min:
             scale_factor = r_min / r
             x *= scale_factor
             y *= scale_factor

@@ -26,7 +26,7 @@ from lerobot.robots import (  # noqa: F401
 
 from lerobot.teleoperators.keyboard.teleop_keyboard import KeyboardTeleop
 from lerobot.robots.so_follower import (SO101Follower)
-from software.examples.example_utils import (return_to_start_position,
+from software.examples.example_utils import (SO101_arm_return_to_start_position,
                                              inverse_kinematics,
                                              keyboard_teleop_task)
 
@@ -230,10 +230,10 @@ def p_control_loop(*,
                     case 'x':
                         # Exit program, first return to start position
                         print("Exit command detected, returning to start position...")
-                        return_to_start_position(robots=robots,
-                                                 arm_start_positions=arm_start_positions,
-                                                 kp=0.2,
-                                                 control_freq=control_freq)
+                        SO101_arm_return_to_start_position(robots=robots,
+                                                           arm_start_positions=arm_start_positions,
+                                                           kp=0.2,
+                                                           control_freq=control_freq)
                         return
 
                     # Pitch control
