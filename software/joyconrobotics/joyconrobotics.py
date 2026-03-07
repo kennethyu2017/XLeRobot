@@ -166,9 +166,9 @@ class JoyconRobotics:
                  ):
         
         if device == "right":
-            self.joycon_id = get_R_id()
+            self.joycon_id = get_R_id(debug=True)
         elif device == "left":
-            self.joycon_id = get_L_id()
+            self.joycon_id = get_L_id(debug=True)
         else:
             print("get a wrong device name of joycon")
         device_serial = self.joycon_id[2][:6]
@@ -369,8 +369,11 @@ class JoyconRobotics:
                 self.reset_joycon()
             elif self.joycon.is_right() and event_type == 'a':
                 self.next_episode_button = status
+
             elif self.joycon.is_right() and event_type == 'y':
+                # TODO: will be used to return to start position and Exit programe. kenn.
                 self.restart_episode_button = status
+
             elif ((self.joycon.is_right() and event_type == 'zr') or (self.joycon.is_left() and event_type == 'zl')) and not self.change_down_to_gripper:
                 self.gripper_toggle_button = status
             elif ((self.joycon.is_right() and event_type == 'stick_r_btn') or (self.joycon.is_left() and event_type == 'stick_l_btn')) and self.change_down_to_gripper:
@@ -433,6 +436,7 @@ class JoyconRobotics:
     
     def update(self):
         roll, pitch, yaw = self.get_orientation()
+        # print(f'------ roll={roll} pitch={pitch} yaw={yaw} ----')
         self.position, gripper, button_control = self.common_update()
 
         if self.if_limit_dof:

@@ -14,6 +14,9 @@ def get_device_ids(debug=False):
         vendor_id      = device["vendor_id"]
         product_id     = device["product_id"]
         product_string = device["product_string"]
+        # serial is mac address.
+        # bluetoothctl devices | grep Joy-Con
+        # bluetoothctl info A0:5A:5F:60:7A:CD
         serial = device.get('serial') or device.get("serial_number")
         
         if vendor_id != JOYCON_VENDOR_ID:

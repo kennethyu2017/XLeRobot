@@ -1,4 +1,4 @@
-from joyconrobotics import JoyconRobotics
+from  software.joyconrobotics import JoyconRobotics
 import time
 
 # 继承JoyconRobotics类来修改控制逻辑
@@ -96,37 +96,46 @@ class FixedAxesJoyconRobotics(JoyconRobotics):
         
         return self.position, self.gripper_state, self.button_control
 
-# 使用修改后的控制类
-joyconrobotics_left = FixedAxesJoyconRobotics(
-    device="left",  # 改为左手控制器
-    joycon_stick_v_0=2300,  # 垂直摇杆中心值
-    joycon_stick_h_0=2000,  # 水平摇杆中心值
-    dof_speed=[2, 2, 2, 1, 1, 1]
-)
-# joyconrobotics_right = FixedAxesJoyconRobotics(
-#     device="right",
-#     joycon_stick_v_0=1900,  # 垂直摇杆中心值
-#     joycon_stick_h_0=2100,  # 水平摇杆中心值
-#     dof_speed=[2, 2, 2, 1, 1, 1]
-# )
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2 or sys.argv[1] not in {'left', 'right'}:
+        raise ValueError(f'input arg error. please input left or right')
+    # Naive implementation.
+    device_side= sys.argv[1]
+    # 使用修改后的控制类
+    jcn = FixedAxesJoyconRobotics(
+        device=device_side,  # 改为左手控制器
+        joycon_stick_v_0=2300,  # 垂直摇杆中心值
+        joycon_stick_h_0=2000,  # 水平摇杆中心值
+        dof_speed=[2, 2, 2, 1, 1, 1]
+    )
+    # joyconrobotics_right = FixedAxesJoyconRobotics(
+    #     device="right",
+    #     joycon_stick_v_0=1900,  # 垂直摇杆中心值
+    #     joycon_stick_h_0=2100,  # 水平摇杆中心值
+    #     dof_speed=[2, 2, 2, 1, 1, 1]
+    # )
 
-print("固定轴向控制测试:")
-print("垂直摇杆: 只控制X轴（前后）")  
-print("水平摇杆: 只控制Y轴（左右）")
-print("L按钮: Z轴上升")  # 改为L按钮
-print("摇杆按钮: Z轴下降")
-print("Capture按钮: 重置位置")  # 改为Capture按钮
-print("ZL按钮: 切换夹爪")  # 改为ZL按钮
-print("按Ctrl+C停止")
-print()
+    print("固定轴向控制测试:")
+    print("垂直摇杆: 只控制X轴（前后）")
+    print("水平摇杆: 只控制Y轴（左右）")
+    print("L按钮: Z轴上升")  # 改为L按钮
+    print("摇杆按钮: Z轴下降")
+    print("Capture按钮: 重置位置")  # 改为Capture按钮
+    print("ZL按钮: 切换夹爪")  # 改为ZL按钮
+    print("按Ctrl+C停止")
+    print()
 
-for i in range(10000):
-    pose_left, gripper_left, control_button_left = joyconrobotics_left.get_control()  # 改变量名
-    # pose_right, gripper_right, control_button_right = joyconrobotics_right.get_control()  # 改变量名
-    x_left, y_left, z_left, roll_left, pitch_left, yaw_left = pose_left
-    # x_right, y_right, z_right, roll_right, pitch_right, yaw_right = pose_right
-    print(f'pos_left={x_left:.3f}, {y_left:.3f}, {z_left:.3f}, Rot_left={roll_left:.3f}, {pitch_left:.3f}, {yaw_left:.3f}, gripper_left={gripper_left}, control_button_left={control_button_left}')
-    # print(f'pos_right={x_right:.3f}, {y_right:.3f}, {z_right:.3f}, Rot_right={roll_right:.3f}, {pitch_right:.3f}, {yaw_right:.3f}, gripper_right={gripper_right}, control_button_right={control_button_right}')
-    time.sleep(0.02)
+    time.sleep(1)
 
-joyconrobotics_left.disconnect()  # 改变量名 
+    for i in range(10000):
+        pose_jcn, gripper_jcn, control_button_jcn = jcn.get_control()  # 改变量名
+        # pose_right, gripper_right, control_button_right = joyconrobotics_right.get_control()  # 改变量名
+        x_jcn, y_jcn, z_jcn, roll_jcn, pitch_jcn, yaw_jcn = pose_jcn
+        # x_right, y_right, z_right, roll_right, pitch_right, yaw_right = pose_right
+        print(f'xyz_{device_side}={x_jcn:.3f}, {y_jcn:.3f}, {z_jcn:.3f}, RPY_{device_side}={roll_jcn:.3f}, {pitch_jcn:.3f}, {yaw_jcn:.3f}, gripper_{device_side}={gripper_jcn}, control_button_{device_side}={control_button_jcn}')
+        # print(f'pos_right={x_right:.3f}, {y_right:.3f}, {z_right:.3f}, Rot_right={roll_right:.3f}, {pitch_right:.3f}, {yaw_right:.3f}, gripper_right={gripper_right}, control_button_right={control_button_right}')
+        # time.sleep(0.02)
+        time.sleep(0.5)
+
+    jcn.disconnect()  # 改变量名
