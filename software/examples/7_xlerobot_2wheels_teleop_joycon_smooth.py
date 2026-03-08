@@ -728,11 +728,11 @@ def main(cfg: XConfig):
     kin_left = SO101Kinematics()
     kin_right = SO101Kinematics()
     left_arm = SimpleTeleopArm(robot=robot, joint_map=_left_joint_map(), initial_obs=start_obs,
-                               kinematics=kin_left, prefix="left", kp=.5)
+                               kinematics=kin_left, prefix="left", kp=.3)
     right_arm = SimpleTeleopArm(robot=robot, joint_map=_right_joint_map(), initial_obs=start_obs,
-                                kinematics=kin_right, prefix="right", kp=.5)
+                                kinematics=kin_right, prefix="right", kp=.3)
     head_control = SimpleHeadControl(robot=robot, initial_obs=start_obs,
-                                     joint_map=_head_motor_map(),kp=0.5)
+                                     joint_map=_head_motor_map(),kp=0.3)
 
     # Move both arms and head to zero position at start
     # left_arm.move_to_zero_position()
