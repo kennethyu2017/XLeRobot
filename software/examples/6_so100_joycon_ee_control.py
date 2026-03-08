@@ -22,9 +22,9 @@ from software.src.robots.xlerobot_2wheels import (
 
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from software.joyconrobotics import JoyconRobotics
-from software.examples.example_utils import ( SO101_arm_return_to_start_position,
-                                              inverse_kinematics,
-                                              keyboard_teleop_task)
+from software.examples.example_utils import (SO101_arm_return_to_start_position,
+                                             inverse_kinematics,
+                                             keyboard_teleop_SO101arm_task)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -313,13 +313,13 @@ def main():
     print("ZR按钮: 切换夹爪")
     print("按Ctrl+C停止")
     try:
-        keyboard_teleop_task(p_control_loop=partial(p_control_loop,
-                                                    joyconrobotics_right=joyconrobotics_right,
-                                                    start_x=x0,
-                                                    start_y=y0,
-                                                    kp=0.3,
-                                                    control_freq=20)
-                             )
+        keyboard_teleop_SO101arm_task(p_control_loop=partial(p_control_loop,
+                                                             joyconrobotics_right=joyconrobotics_right,
+                                                             start_x=x0,
+                                                             start_y=y0,
+                                                             kp=0.3,
+                                                             control_freq=20)
+                                      )
     except Exception as e:
         print(e)
 

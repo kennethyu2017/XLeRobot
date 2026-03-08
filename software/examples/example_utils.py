@@ -607,8 +607,8 @@ class XConfig:
 
 
 @draccus.wrap()
-def keyboard_teleop_task(cfg: XConfig,
-						 p_control_loop:Callable )->None:
+def keyboard_teleop_SO101arm_task(cfg: XConfig,
+								  p_control_loop:Callable)->None:
 	logger.info(f'load config for x_lerbot_2_wheels --->\n{cfg}')
 
 	"""Main function"""

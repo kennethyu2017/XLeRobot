@@ -619,6 +619,7 @@ def main(cfg: XConfig):
     # Move both arms and head to zero position at start
     left_arm.move_to_zero_position()
     right_arm.move_to_zero_position()
+    head_control.move_to_zero_position()
 
     # smooth controller instance
     smooth_controller = SmoothBaseController()

@@ -1,12 +1,4 @@
-# To Run on the host
-'''
-PYTHONPATH=src python -m lerobot.robots.xlerobot_2wheels.xlerobot_2wheels_host --robot.id=my_xlerobot_2wheels
-'''
 
-# To Run the teleop:
-'''
-PYTHONPATH=src python -m examples.xlerobot_2wheels.teleoperate_joycon
-'''
 
 # Base speed control instructions:
 # - When holding any base control button (X forward, B backward, Y left turn, A right turn), speed will linearly accelerate to maximum speed
@@ -19,34 +11,19 @@ PYTHONPATH=src python -m examples.xlerobot_2wheels.teleoperate_joycon
 import time
 import numpy as np
 import math
+from typing import Any, cast, Dict
+from dataclasses import dataclass
+import draccus
 
-from lerobot.robots.xlerobot_2wheels import XLerobot2WheelsConfig, XLerobot2Wheels
-from lerobot.utils.robot_utils import busy_wait
-from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
-from lerobot.model.SO101Robot import SO101Kinematics
-from joyconrobotics import JoyconRobotics
-
-LEFT_JOINT_MAP = {
-    "shoulder_pan": "left_arm_shoulder_pan",
-    "shoulder_lift": "left_arm_shoulder_lift",
-    "elbow_flex": "left_arm_elbow_flex",
-    "wrist_flex": "left_arm_wrist_flex",
-    "wrist_roll": "left_arm_wrist_roll",
-    "gripper": "left_arm_gripper",
-}
-RIGHT_JOINT_MAP = {
-    "shoulder_pan": "right_arm_shoulder_pan",
-    "shoulder_lift": "right_arm_shoulder_lift",
-    "elbow_flex": "right_arm_elbow_flex",
-    "wrist_flex": "right_arm_wrist_flex",
-    "wrist_roll": "right_arm_wrist_roll",
-    "gripper": "right_arm_gripper",
-}
-
-HEAD_MOTOR_MAP = {
-    "head_motor_1": "head_motor_1",
-    "head_motor_2": "head_motor_2",
-}
+from lerobot.robots import (  # noqa: F401
+    Robot,
+    RobotConfig,
+)
+from software.src.robots.xlerobot_2wheels import (
+    XLerobot2WheelsConfig,
+    XLerobot2Wheels)
+from software.src.model.SO101Robot import SO101Kinematics
+from software.joyconrobotics import JoyconRobotics
 
 class FixedAxesJoyconRobotics(JoyconRobotics):
     def __init__(self, device, **kwargs):
@@ -66,7 +43,7 @@ class FixedAxesJoyconRobotics(JoyconRobotics):
         self.gripper_min = 0  # Minimum angle (fully closed)
         self.gripper_max = 90  # Maximum angle (fully open)
         self.last_gripper_button_state = 0  # Record previous frame button state for detecting press events
-    
+
     def common_update(self):
         # Modified update logic: joystick only controls fixed axes
         speed_scale = 0.001
@@ -74,7 +51,6 @@ class FixedAxesJoyconRobotics(JoyconRobotics):
         # Get current orientation data to print pitch
         orientation_rad = self.get_orientation()
         roll, pitch, yaw = orientation_rad
-
         
         # Vertical joystick: controls X and Z axes (forward/backward)
         joycon_stick_v = self.joycon.get_stick_right_vertical() if self.joycon.is_right() else self.joycon.get_stick_left_vertical()
@@ -114,16 +90,24 @@ class FixedAxesJoyconRobotics(JoyconRobotics):
         for event_type, status in self.button.events():
             if (self.joycon.is_right() and event_type == 'plus' and status == 1) or (self.joycon.is_left() and event_type == 'minus' and status == 1):
                 self.reset_button = 1
+                # will re-calibrate joycon.
                 self.reset_joycon()
-            elif self.joycon.is_right() and event_type == 'a':
-                self.next_episode_button = status
-            elif self.joycon.is_right() and event_type == 'y':
+
+            # TODO: for 2-wheels xlerobot, a,y,x,b are used for base-movement ctrl.
+            # elif self.joycon.is_right() and event_type == 'a':
+            #     self.next_episode_button = status
+            #
+            # elif self.joycon.is_right() and event_type == 'y':
+            #     self.restart_episode_button = status
+
+            # TODO: use left-joycon capture as 'exit'. kenn.
+            elif self.joycon.is_left() and event_type == 'capture':
                 self.restart_episode_button = status
-            else: 
+            else:
                 self.reset_button = 0
-        
+
         # Gripper button state detection and direction control
-        gripper_button_pressed = False
+        # gripper_button_pressed = False
         if self.joycon.is_right():
             # Right Joy-Con uses ZR button
             if not self.change_down_to_gripper:
@@ -152,37 +136,37 @@ class FixedAxesJoyconRobotics(JoyconRobotics):
             new_gripper_state = self.gripper_state + self.gripper_direction * self.gripper_speed
             
             # If exceeding limits, stop moving
-            if new_gripper_state >= self.gripper_min and new_gripper_state <= self.gripper_max:
+            if self.gripper_min <= new_gripper_state <= self.gripper_max:
                 self.gripper_state = new_gripper_state
             # If exceeding limits, stay at current position, don't change direction
-
         
 
         # Button control state
-        if self.joycon.is_right():
-            if self.next_episode_button == 1:
-                self.button_control = 1
-            elif self.restart_episode_button == 1:
-                self.button_control = -1
-            elif self.reset_button == 1:
-                self.button_control = 8
-            else:
-                self.button_control = 0
+        # if self.joycon.is_right():
+        if self.next_episode_button == 1:
+            self.button_control = 1
+        elif self.restart_episode_button == 1:
+            self.button_control = -1
+        elif self.reset_button == 1:
+            self.button_control = 8
+        else:
+            self.button_control = 0
         
         return self.position, self.gripper_state, self.button_control
     
 class SimpleTeleopArm:
-    def __init__(self, joint_map, initial_obs, kinematics, prefix="right", kp=1):
+    def __init__(self, *, robot:XLerobot2Wheels, joint_map, initial_obs, kinematics, prefix:str, kp:float):
+        self.robot = robot
         self.joint_map = joint_map
         self.prefix = prefix
         self.kp = kp
         self.kinematics = kinematics
         
         # Initialize smooth controller for arm joints
-        self.smooth_controller = SmoothArmController()
+        self.ctrl_smoother = ArmCtrlSmoother()
         
         # Initial joint positions
-        self.joint_positions = {
+        self.start_joint_positions = {
             "shoulder_pan": initial_obs[f"{prefix}_arm_shoulder_pan.pos"],
             "shoulder_lift": initial_obs[f"{prefix}_arm_shoulder_lift.pos"],
             "elbow_flex": initial_obs[f"{prefix}_arm_elbow_flex.pos"],
@@ -190,6 +174,7 @@ class SimpleTeleopArm:
             "wrist_roll": initial_obs[f"{prefix}_arm_wrist_roll.pos"],
             "gripper": initial_obs[f"{prefix}_arm_gripper.pos"],
         }
+        print(f'{prefix}[/SimpleTeleopArm] {self.start_joint_positions=:}')
         
         # Set initial x/y to fixed values
         self.current_x = 0.1629
@@ -218,20 +203,39 @@ class SimpleTeleopArm:
             'gripper': 0.0
         }
 
-    def move_to_zero_position(self, robot):
-        print(f"[{self.prefix}] Moving to Zero Position: {self.zero_pos} ......")
-        self.target_positions = self.zero_pos.copy()
-        
-        # Reset kinematics variables to initial state
-        self.current_x = 0.1629
-        self.current_y = 0.1131
-        self.pitch = 0.0
-        
-        # Explicitly set wrist_flex
-        self.target_positions["wrist_flex"] = 0.0
-        
-        action = self.p_control_action(robot)
-        robot.send_action(action)
+    # def move_to_zero_position(self):
+    #     print(f"[{self.prefix}] Moving to Zero Position: {self.zero_pos} ......")
+    #     self.target_positions = self.zero_pos.copy()
+    #
+    #     # Reset kinematics variables to initial state
+    #     self.current_x = 0.1629
+    #     self.current_y = 0.1131
+    #     self.pitch = 0.0
+    #
+    #     # Explicitly set wrist_flex
+    #     self.target_positions["wrist_flex"] = 0.0
+    #
+    #     action = self.p_control_action()
+    #     self.robot.send_action(action)
+
+    def return_to_start_position(self):
+        print(f"[{self.prefix}] Moving to start Position: {self.start_joint_positions} ......")
+        self.target_positions = self.start_joint_positions.copy()  # Use copy to avoid reference issues
+
+        control_freq = 20
+        control_period = 1.0 / control_freq
+        max_steps = int(5.0 * control_freq)  # Maximum 5 seconds
+
+        for step in range(max_steps):
+            action = self.p_control_action()
+            self.robot.send_action(action)
+            # TODO: check error tolerence.
+            # if total_error < 2.0:  # If total error is less than 2 degrees, consider reached
+            #     print(f"{_arm_name} Returned to start position.")
+            #     break
+            time.sleep(control_period)
+
+        print("Return to start position completed")
 
     def handle_joycon_input(self, joycon_pose, gripper_state):
         """Handle Joy-Con input, update arm control - based on 6_so100_joycon_ee_control.py"""
@@ -247,7 +251,7 @@ class SimpleTeleopArm:
         # Calculate roll - consistent with 6_so100_joycon_ee_control.py
         roll = roll_ * 45
         
-        print(f"[{self.prefix}] pitch: {pitch}")
+        # print(f"[{self.prefix}] pitch: {pitch}")
         
         # Add y value to control shoulder_pan joint - consistent with 6_so100_joycon_ee_control.py
         y_scale = 250.0  # Scaling factor, can be adjusted as needed
@@ -268,18 +272,20 @@ class SimpleTeleopArm:
         self.target_positions["wrist_roll"] = roll
         
         # Gripper control - now set directly in main loop, no need to handle here
-        pass
+        # pass
 
-    def p_control_action(self, robot):
-        obs = robot.get_observation()
-        current = {j: obs[f"{self.prefix}_arm_{j}.pos"] for j in self.joint_map}
+    def p_control_action(self):
+        obs = self.robot.get_observation()
+        # current = {j: obs[f"{self.prefix}_arm_{j}.pos"] for j in self.joint_map}
+        current = {j: obs[f"{self.joint_map[j]}.pos"] for j in self.joint_map}
         
         # Apply smooth control to the first three joints
-        smoothed_positions = self.smooth_controller.update(self.target_positions, current)
+        smoothed_positions = self.ctrl_smoother.update(self.target_positions, current)
         
         action = {}
         for j in self.target_positions:
-            if j in ["shoulder_pan", "shoulder_lift", "elbow_flex"]:
+            # if j in ["shoulder_pan", "shoulder_lift", "elbow_flex"]:
+            if False:
                 # Use smoothed positions for the first three joints
                 error = smoothed_positions[j] - current[j]
             else:
@@ -291,21 +297,45 @@ class SimpleTeleopArm:
         return action
 
 class SimpleHeadControl:
-    def __init__(self, initial_obs, kp=1):
+    def __init__(self, *, robot:XLerobot2Wheels, initial_obs, joint_map, kp):
+        self.robot = robot
+        self.joint_map = joint_map
         self.kp = kp
         self.degree_step = 2  # Move 2 degrees each time
-        # Initialize head motor positions
-        self.target_positions = {
+        self.start_joint_positions = {
             "head_motor_1": initial_obs.get("head_motor_1.pos", 0.0),
             "head_motor_2": initial_obs.get("head_motor_2.pos", 0.0),
         }
+        print(f'[SimpleHeadControl] {self.start_joint_positions=:}')
+        # Initialize head motor positions
+        self.target_positions = {"head_motor_1": 0.0, "head_motor_2": 0.0}
         self.zero_pos = {"head_motor_1": 0.0, "head_motor_2": 0.0}
 
-    def move_to_zero_position(self, robot):
-        print(f"[HEAD] Moving to Zero Position: {self.zero_pos} ......")
-        self.target_positions = self.zero_pos.copy()
-        action = self.p_control_action(robot)
-        robot.send_action(action)
+    # def move_to_zero_position(self):
+    #     # print(f"[HEAD] Moving to Zero Position: {self.zero_pos} ......")
+    #     self.target_positions = self.zero_pos.copy()
+    #     action = self.p_control_action()
+    #     self.robot.send_action(action)
+    # using linear interpolation.
+
+    # def return_to_start_position(self):
+    #     print(f"head Moving to star Position: {self.start_joint_positions} ......")
+    #     self.target_positions = self.start_joint_positions.copy()  # Use copy to avoid reference issues
+    #     control_freq = 20
+    #     control_period = 1.0 / control_freq
+    #     max_steps = int(5.0 * control_freq)  # Maximum 5 seconds
+    #
+    #     for step in range(max_steps):
+    #         action = self.p_control_action()
+    #         self.robot.send_action(action)
+    #         # TODO: check error tolerence.
+    #         # if total_error < 2.0:  # If total error is less than 2 degrees, consider reached
+    #         #     print(f"{_arm_name} Returned to start position.")
+    #         #     break
+    #         time.sleep(control_period)
+    #
+    #     print("Return to start position completed")
+    #
 
     def handle_joycon_input(self, joycon):
         """Handle left Joy-Con directional pad input to control head motors"""
@@ -317,25 +347,25 @@ class SimpleHeadControl:
         
         if button_up == 1:
             self.target_positions["head_motor_2"] += self.degree_step
-            print(f"[HEAD] head_motor_2: {self.target_positions['head_motor_2']}")
+            # print(f"[HEAD] head_motor_2: {self.target_positions['head_motor_2']}")
         if button_down == 1:
             self.target_positions["head_motor_2"] -= self.degree_step
-            print(f"[HEAD] head_motor_2: {self.target_positions['head_motor_2']}")
+            # print(f"[HEAD] head_motor_2: {self.target_positions['head_motor_2']}")
         if button_left == 1:
             self.target_positions["head_motor_1"] += self.degree_step
-            print(f"[HEAD] head_motor_1: {self.target_positions['head_motor_1']}")
+            # print(f"[HEAD] head_motor_1: {self.target_positions['head_motor_1']}")
         if button_right == 1:
             self.target_positions["head_motor_1"] -= self.degree_step
-            print(f"[HEAD] head_motor_1: {self.target_positions['head_motor_1']}")
+            # print(f"[HEAD] head_motor_1: {self.target_positions['head_motor_1']}")
 
-    def p_control_action(self, robot):
-        obs = robot.get_observation()
+    def p_control_action(self):
+        obs = self.robot.get_observation()
         action = {}
         for motor in self.target_positions:
-            current = obs.get(f"{HEAD_MOTOR_MAP[motor]}.pos", 0.0)
+            current = obs.get(f"{self.joint_map[motor]}.pos", 0.0)
             error = self.target_positions[motor] - current
             control = self.kp * error
-            action[f"{HEAD_MOTOR_MAP[motor]}.pos"] = current + control
+            action[f"{self.joint_map[motor]}.pos"] = current + control
         return action
 
 def get_joycon_base_action(joycon, robot):
@@ -354,16 +384,16 @@ def get_joycon_base_action(joycon, robot):
     
     if button_x == 1:
         pressed_keys.add(robot.teleop_keys['rotate_left'])  # left turn
-        print("[BASE] Left turn")
+        # print("[BASE] Left turn")
     if button_b == 1:
         pressed_keys.add(robot.teleop_keys['rotate_right'])  # right turn
-        print("[BASE] Right turn")
+        # print("[BASE] Right turn")
     if button_y == 1:
         pressed_keys.add(robot.teleop_keys['forward'])  # forward
-        print("[BASE] Forward")
+        # print("[BASE] Forward")
     if button_a == 1:
         pressed_keys.add(robot.teleop_keys['backward'])  # backward
-        print("[BASE] Backward")
+        # print("[BASE] Backward")
     
     # Convert to numpy array and get base action
     keyboard_keys = np.array(list(pressed_keys))
@@ -371,21 +401,15 @@ def get_joycon_base_action(joycon, robot):
     
     return base_action
 
-# Base speed control parameters - adjustable slopes
-BASE_ACCELERATION_RATE = 10.0  # acceleration slope (speed/second)
-BASE_DECELERATION_RATE = 10.0  # deceleration slope (speed/second)
-BASE_MAX_SPEED = 5.0          # maximum speed multiplier
-MIN_VELOCITY_THRESHOLD = 0.02 # minimum velocity to send to motors during deceleration
-
-# Arm smooth control parameters - adjustable slopes
-ARM_ACCELERATION_RATE = 5.0   # acceleration slope (degrees/second)
-ARM_DECELERATION_RATE = 8.0   # deceleration slope (degrees/second)
-ARM_MAX_SPEED = 2.0           # maximum speed multiplier
-ARM_MIN_VELOCITY_THRESHOLD = 0.1 # minimum velocity to send to motors during deceleration
-
-class SmoothBaseController:
+@dataclass
+class BaseCtrlSmoother:
     """Simplified smooth base controller with acceleration/deceleration for differential drive"""
-    
+    # Base speed control parameters - adjustable slopes
+    BASE_ACCELERATION_RATE = 10.0  # acceleration slope (speed/second)
+    BASE_DECELERATION_RATE = 10.0  # deceleration slope (speed/second)
+    BASE_MAX_SPEED = 5.0  # maximum speed multiplier
+    MIN_VELOCITY_THRESHOLD = 0.02  # minimum velocity to send to motors during deceleration
+
     def __init__(self):
         self.current_speed = 0.0
         self.last_time = time.time()
@@ -414,7 +438,7 @@ class SmoothBaseController:
             # Keys pressed - calculate direction and accelerate
             if not self.is_moving:
                 self.is_moving = True
-                print("[BASE] Starting acceleration")
+                # print("[BASE] Starting acceleration")
             
             # Get current speed level from robot
             speed_setting = robot.speed_levels[robot.speed_index]
@@ -435,21 +459,21 @@ class SmoothBaseController:
             self.last_direction = base_action.copy()
             
             # Accelerate
-            self.current_speed += BASE_ACCELERATION_RATE * dt
-            self.current_speed = min(self.current_speed, BASE_MAX_SPEED)
+            self.current_speed += self.BASE_ACCELERATION_RATE * dt
+            self.current_speed = min(self.current_speed, self.BASE_MAX_SPEED)
                 
         else:
             # No keys pressed - decelerate
             if self.is_moving:
                 self.is_moving = False
-                print("[BASE] Starting deceleration")
+                # print("[BASE] Starting deceleration")
             
             # Use last direction for deceleration
             if self.current_speed > 0.01 and self.last_direction:
                 base_action = self.last_direction.copy()
             
             # Decelerate
-            self.current_speed -= BASE_DECELERATION_RATE * dt
+            self.current_speed -= self.BASE_DECELERATION_RATE * dt
             self.current_speed = max(self.current_speed, 0.0)
         
         # Apply speed multiplier
@@ -460,23 +484,30 @@ class SmoothBaseController:
                     base_action[key] *= self.current_speed
                     
                     # Ensure minimum velocity during deceleration to prevent motor cutoff
-                    if self.current_speed > 0.01 and abs(base_action[key]) < MIN_VELOCITY_THRESHOLD:
+                    if self.current_speed > 0.01 and abs(base_action[key]) < self.MIN_VELOCITY_THRESHOLD:
                         # During deceleration, maintain minimum velocity to keep motors moving
-                        base_action[key] = MIN_VELOCITY_THRESHOLD if original_value > 0 else -MIN_VELOCITY_THRESHOLD
+                        base_action[key] = self.MIN_VELOCITY_THRESHOLD if original_value > 0 else - self.MIN_VELOCITY_THRESHOLD
         
         # Debug output
-        if any_key_pressed:
-            print(f"[BASE] ACCEL: Speed={self.current_speed:.2f}, Action={base_action}")
-        elif self.current_speed > 0.01:
-            print(f"[BASE] DECEL: Speed={self.current_speed:.2f}, Action={base_action}")
-        elif self.current_speed <= 0.01:
-            print(f"[BASE] STOPPED: Speed={self.current_speed:.2f}")
-        
+        # if any_key_pressed:
+        #     print(f"[BASE] ACCEL: Speed={self.current_speed:.2f}, Action={base_action}")
+        # elif self.current_speed > 0.01:
+        #     print(f"[BASE] DECEL: Speed={self.current_speed:.2f}, Action={base_action}")
+        # elif self.current_speed <= 0.01:
+        #     print(f"[BASE] STOPPED: Speed={self.current_speed:.2f}")
+        #
         return base_action
 
-class SmoothArmController:
+@dataclass
+class ArmCtrlSmoother:
     """Smooth arm controller with acceleration/deceleration for the first three joints"""
-    
+
+    # Arm smooth control parameters - adjustable slopes
+    ARM_ACCELERATION_RATE = 5.0  # acceleration slope (degrees/second)
+    ARM_DECELERATION_RATE = 8.0  # deceleration slope (degrees/second)
+    ARM_MAX_SPEED = 2.0  # maximum speed multiplier
+    ARM_MIN_VELOCITY_THRESHOLD = 0.1  # minimum velocity to send to motors during deceleration
+
     def __init__(self):
         self.current_speeds = {
             "shoulder_pan": 0.0,
@@ -524,8 +555,8 @@ class SmoothArmController:
                 self.last_directions[joint] = direction
                 
                 # Accelerate
-                self.current_speeds[joint] += ARM_ACCELERATION_RATE * dt
-                self.current_speeds[joint] = min(self.current_speeds[joint], ARM_MAX_SPEED)
+                self.current_speeds[joint] += self.ARM_ACCELERATION_RATE * dt
+                self.current_speeds[joint] = min(self.current_speeds[joint], self.ARM_MAX_SPEED)
                 
                 # Calculate movement step
                 movement_step = self.current_speeds[joint] * dt * direction
@@ -545,30 +576,124 @@ class SmoothArmController:
                     movement_step = self.current_speeds[joint] * dt * direction
                     
                     # Ensure minimum velocity during deceleration
-                    if abs(movement_step) < ARM_MIN_VELOCITY_THRESHOLD:
-                        movement_step = ARM_MIN_VELOCITY_THRESHOLD if direction > 0 else -ARM_MIN_VELOCITY_THRESHOLD
+                    if abs(movement_step) < self.ARM_MIN_VELOCITY_THRESHOLD:
+                        movement_step = self.ARM_MIN_VELOCITY_THRESHOLD if direction > 0 else - self.ARM_MIN_VELOCITY_THRESHOLD
                     
                     smoothed_positions[joint] = current + movement_step
                 else:
                     smoothed_positions[joint] = current
                 
                 # Decelerate
-                self.current_speeds[joint] -= ARM_DECELERATION_RATE * dt
+                self.current_speeds[joint] -= self.ARM_DECELERATION_RATE * dt
                 self.current_speeds[joint] = max(self.current_speeds[joint], 0.0)
         
         return smoothed_positions
 
-# Global smooth controller instances
-smooth_controller = SmoothBaseController()
+def _xlerobot_move_by_linear_interpolation(*, robot:XLerobot2Wheels, goal_pos:Dict[str,float],
+                                           duration:float, control_freq:float):
+    print("Using P control to slowly move robot to zero position...")
 
-def main():
+    # Calculate control steps
+    # control_freq = 20  # 50  # 50Hz control frequency
+    total_steps = int(duration * control_freq)
+    step_time = 1.0 / control_freq
+
+    ds: Dict[str,float] = {}
+    obs: Dict[str,float] = robot.get_observation()
+    for _k, _v in goal_pos.items():
+        error = float(_v - obs[_k +'.pos'])
+        ds[_k + '.pos'] = error / total_steps
+
+    for step in range(total_steps):
+        action = {}
+        for _k, _v in ds.items():
+            action[_k] = obs[_k] + _v * step
+        robot.send_action(action)
+
+        # Display progress
+        if step % control_freq == 0:  # Display progress every 1 seconds
+            progress = (step / total_steps) * 100
+            print(f"Moving robot to goal position progress: {progress:.1f}%")
+
+        # TODO: not include the bus delay time. inaccurate for control freq. kenn.
+        time.sleep(step_time)
+
+    print("Robots moved to goal position")
+
+
+def _xlerobot_return_to_start_position(*,
+        robot: XLerobot2Wheels,
+        left_arm:SimpleTeleopArm,
+        right_arm:SimpleTeleopArm,
+        head:SimpleHeadControl):
+    limbs = tuple([left_arm, right_arm, head])
+    for _lb in limbs:
+        _lb.target_positions = _lb.start_joint_positions.copy()
+        print(f'{_lb.prefix+"arm" if hasattr(_lb, "prefix") else "head"} return to start positions: {_lb.target_positions}')
+
+    control_freq = 20
+    control_period = 1.0 / control_freq
+    max_steps = int(5.0 * control_freq)  # Maximum 5 seconds
+
+    for step in range(max_steps):
+        action = {}
+        for _lb in limbs:
+            action.update(_lb.p_control_action())
+
+        robot.send_action(action)
+        # TODO: check error tolerence.
+        # if total_error < 2.0:  # If total error is less than 2 degrees, consider reached
+        #     print(f"{_arm_name} Returned to start position.")
+        #     break
+        time.sleep(control_period)
+
+    print("Return to start position completed")
+
+
+@dataclass
+class XConfig:
+    # teleop: TeleoperatorConfig | None = None
+    robot: RobotConfig | None = None
+    teleop: Any = None
+
+
+@draccus.wrap()
+def main(cfg: XConfig):
+    print(f'XConfig for main: {cfg}')
     FPS = 30
-    
+
+    def _left_joint_map():
+        return {
+            "shoulder_pan": "left_arm_shoulder_pan",
+            "shoulder_lift": "left_arm_shoulder_lift",
+            "elbow_flex": "left_arm_elbow_flex",
+            "wrist_flex": "left_arm_wrist_flex",
+            "wrist_roll": "left_arm_wrist_roll",
+            "gripper": "left_arm_gripper",
+        }
+
+    def _right_joint_map():
+        return {
+            "shoulder_pan": "right_arm_shoulder_pan",
+            "shoulder_lift": "right_arm_shoulder_lift",
+            "elbow_flex": "right_arm_elbow_flex",
+            "wrist_flex": "right_arm_wrist_flex",
+            "wrist_roll": "right_arm_wrist_roll",
+            "gripper": "right_arm_gripper",
+        }
+
+    def _head_motor_map():
+        return {
+            "head_motor_1": "head_motor_1",
+            "head_motor_2": "head_motor_2",
+        }
+
     # Try to use saved calibration file to avoid recalibrating each time
     # You can modify robot_id here to match your robot configuration
-    robot_config = XLerobot2WheelsConfig(id="my_xlerobot_2wheels_lab")  # Can be modified to your robot ID
-    robot = XLerobot2Wheels(robot_config)
-    
+    # robot_config = XLerobot2WheelsConfig(id="my_xlerobot_2wheels_lab")  # Can be modified to your robot ID
+    # robot = XLerobot2Wheels(robot_config)
+    robot = XLerobot2Wheels(cast(XLerobot2WheelsConfig, cfg.robot))
+
     try:
         robot.connect()
         print(f"[MAIN] Successfully connected to robot")
@@ -578,11 +703,11 @@ def main():
             print(f"[MAIN] Robot requires calibration")
     except Exception as e:
         print(f"[MAIN] Failed to connect to robot: {e}")
-        print(f"[MAIN] Robot config: {robot_config}")
+        print(f"[MAIN] Robot config: {cfg}")
         print(f"[MAIN] Robot: {robot}")
         return
 
-    init_rerun(session_name="xlerobot_2wheels_teleop_joycon")
+    # init_rerun(session_name="xlerobot_2wheels_teleop_joycon")
 
     # Initialize right Joy-Con controller - based on 6_so100_joycon_ee_control.py
     print("[MAIN] Initializing right Joy-Con controller...")
@@ -599,17 +724,28 @@ def main():
     print(f"[MAIN] Left Joy-Con controller connected")
 
     # Init the arm and head instances
-    obs = robot.get_observation()
+    start_obs = robot.get_observation()
     kin_left = SO101Kinematics()
     kin_right = SO101Kinematics()
-    left_arm = SimpleTeleopArm(LEFT_JOINT_MAP, obs, kin_left, prefix="left")
-    right_arm = SimpleTeleopArm(RIGHT_JOINT_MAP, obs, kin_right, prefix="right")
-    head_control = SimpleHeadControl(obs)
+    left_arm = SimpleTeleopArm(robot=robot, joint_map=_left_joint_map(), initial_obs=start_obs,
+                               kinematics=kin_left, prefix="left", kp=.5)
+    right_arm = SimpleTeleopArm(robot=robot, joint_map=_right_joint_map(), initial_obs=start_obs,
+                                kinematics=kin_right, prefix="right", kp=.5)
+    head_control = SimpleHeadControl(robot=robot, initial_obs=start_obs,
+                                     joint_map=_head_motor_map(),kp=0.5)
 
     # Move both arms and head to zero position at start
-    left_arm.move_to_zero_position(robot)
-    right_arm.move_to_zero_position(robot)
-    head_control.move_to_zero_position(robot)
+    # left_arm.move_to_zero_position()
+    # right_arm.move_to_zero_position()
+    # head_control.move_to_zero_position()
+    xlerobot_zero_positions = {}
+    xlerobot_zero_positions.update({left_arm.prefix + '_arm_' + k:v for k, v in left_arm.zero_pos.items()})
+    xlerobot_zero_positions.update({right_arm.prefix + '_arm_' + k:v for k, v in right_arm.zero_pos.items()})
+    xlerobot_zero_positions.update(head_control.zero_pos)
+    _xlerobot_move_by_linear_interpolation(robot=robot, goal_pos=xlerobot_zero_positions,
+                                           duration=5., control_freq=20)
+
+    base_ctrl_smoother = BaseCtrlSmoother()
 
     # Print comprehensive keymap information based on robot config
     print("\n" + "="*80)
@@ -657,15 +793,15 @@ def main():
     for i, level in enumerate(robot.speed_levels):
         print(f"      Level {i+1}: Linear {level['linear']:.1f}m/s, Angular {level['angular']:.0f}°/s")
     
-    print(f"\n🚀 Smooth Control Parameters:")
-    print(f"   Base Control:")
-    print(f"     Acceleration Rate: {BASE_ACCELERATION_RATE:.1f} speed/second")
-    print(f"     Deceleration Rate: {BASE_DECELERATION_RATE:.1f} speed/second")
-    print(f"     Max Speed Multiplier: {BASE_MAX_SPEED:.1f}x")
-    print(f"   Arm Control (shoulder_pan, shoulder_lift, elbow_flex):")
-    print(f"     Acceleration Rate: {ARM_ACCELERATION_RATE:.1f} degrees/second")
-    print(f"     Deceleration Rate: {ARM_DECELERATION_RATE:.1f} degrees/second")
-    print(f"     Max Speed Multiplier: {ARM_MAX_SPEED:.1f}x")
+    # print(f"\n🚀 Smooth Control Parameters:")
+    # print(f"   Base Control:")
+    # print(f"     Acceleration Rate: {BASE_ACCELERATION_RATE:.1f} speed/second")
+    # print(f"     Deceleration Rate: {BASE_DECELERATION_RATE:.1f} speed/second")
+    # print(f"     Max Speed Multiplier: {BASE_MAX_SPEED:.1f}x")
+    # print(f"   Arm Control (shoulder_pan, shoulder_lift, elbow_flex):")
+    # print(f"     Acceleration Rate: {ARM_ACCELERATION_RATE:.1f} degrees/second")
+    # print(f"     Deceleration Rate: {ARM_DECELERATION_RATE:.1f} degrees/second")
+    # print(f"     Max Speed Multiplier: {ARM_MAX_SPEED:.1f}x")
     
     print("\n" + "="*80)
     print("🎮 Control started! Use Joy-Con to control robot")
@@ -674,30 +810,45 @@ def main():
     try:
         while True:
             pose_right, gripper_right, control_button_right = joycon_right.get_control()
-            print(f"pose_right: {pose_right}, gripper_right: {gripper_right}, control_button_right: {control_button_right}")
+            # print(f"pose_right: {pose_right}, gripper_right: {gripper_right}, control_button_right: {control_button_right}")
             pose_left, gripper_left, control_button_left = joycon_left.get_control()
-            print(f"pose_left: {pose_left}, gripper_left: {gripper_left}, control_button_left: {control_button_left}")
+            # print(f"pose_left: {pose_left}, gripper_left: {gripper_left}, control_button_left: {control_button_left}")
 
-            if control_button_right == 8:  # reset button
+            # TODO: pressing button 'capture' to 'restart_episode' temply. kenn.
+            if control_button_left == -1:
+                # Exit program, first return to start position
+                print("Exit command detected, returning to start position...")
+                _xlerobot_return_to_start_position(robot=robot,
+                                                   left_arm=left_arm,
+                                                   right_arm=right_arm,
+                                                   head=head_control)
+                return
+
+            if control_button_right == 8:  # reset button, and will trigger re-calibrate joycon.
                 print("[MAIN] Reset to zero position!")
-                right_arm.move_to_zero_position(robot)
-                left_arm.move_to_zero_position(robot)
-                head_control.move_to_zero_position(robot)
+                # right_arm.move_to_zero_position()
+                # left_arm.move_to_zero_position()
+                # head_control.move_to_zero_position()
+                _xlerobot_move_by_linear_interpolation(robot=robot, goal_pos=xlerobot_zero_positions,
+                                                       duration=5., control_freq=20)
                 continue
 
             # Handle gripper control - directly use Joy-Con gripper state
             right_arm.target_positions["gripper"] = gripper_right
             left_arm.target_positions["gripper"] = gripper_left
-            
+
+            # update target_position in handle_joycon_input().
             right_arm.handle_joycon_input(pose_right, gripper_right)
-            right_action = right_arm.p_control_action(robot)
+            # generate action based on target_position and current obs.
+            right_action = right_arm.p_control_action()
+
             left_arm.handle_joycon_input(pose_left, gripper_left)
-            left_action = left_arm.p_control_action(robot)
+            left_action = left_arm.p_control_action()
             head_control.handle_joycon_input(joycon_left) # Pass joycon_left to head_control
-            head_action = head_control.p_control_action(robot)
+            head_action = head_control.p_control_action()
 
             # Get base action from Joy-Con buttons
-            base_action = get_joycon_base_action(joycon_right, robot)
+            # base_action = get_joycon_base_action(joycon_right, robot)
             
             # Apply smooth speed control to base action
             pressed_keys = set()
@@ -709,21 +860,38 @@ def main():
                 pressed_keys.add(robot.teleop_keys['forward'])
             if joycon_right.joycon.get_button_a() == 1:
                 pressed_keys.add(robot.teleop_keys['backward'])
-            
+
+            # if joycon_left.joycon.get_button_left() == 1:
+            #     pressed_keys.add(robot.teleop_keys['rotate_left'])
+            # if joycon_left.joycon.get_button_right() == 1:
+            #     pressed_keys.add(robot.teleop_keys['rotate_right'])
+            # if joycon_left.joycon.get_button_up() == 1:
+            #     pressed_keys.add(robot.teleop_keys['forward'])
+            # if joycon_left.joycon.get_button_down() == 1:
+            #     pressed_keys.add(robot.teleop_keys['backward'])
+
             # Get smooth base action with linear acceleration/deceleration
-            smooth_base_action = smooth_controller.update(pressed_keys, robot)
+            smooth_base_action = base_ctrl_smoother.update(pressed_keys, robot)
 
             # Merge all actions
             action = {**left_action, **right_action, **head_action, **smooth_base_action}
             robot.send_action(action)
+            time.sleep(1./FPS)
 
-            obs = robot.get_observation()
-            log_rerun_data(obs, action)
+            # obs = robot.get_observation()
+            # log_rerun_data(obs, action)
+
+    except Exception as e:
+        print(e)
+
     finally:
         joycon_right.disconnect()
         joycon_left.disconnect()
-        robot.disconnect()
-        print("Teleoperation ended.")
+
+        if robot.is_connected:
+            robot.disconnect()
+
+        print("Programe ended.")
 
 if __name__ == "__main__":
     main()

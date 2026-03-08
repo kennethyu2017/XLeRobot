@@ -320,8 +320,9 @@ class JoyconRobotics:
             self.position[0] += 0.001 * self.dof_speed[0]
         elif joycon_button_xback == 1:
             self.position[0] -= 0.001 * self.dof_speed[0]
-        
-        joycon_button_home = self.joycon.get_button_home() if self.joycon.is_right() else self.joycon.get_button_capture()
+
+        # TODO: use right-joycon home button only. not use left-joycon capture. kenn.
+        joycon_button_home = self.joycon.get_button_home() if self.joycon.is_right() else 0  # else self.joycon.get_button_capture()
         if joycon_button_home == 1:
             
             if self.position[0] > self.offset_position_m[0] + 0.002: 
@@ -362,23 +363,28 @@ class JoyconRobotics:
                 self.orientation_sensor.set_yaw_diff(self.yaw_diff)
 
         
-        # gripper 
+        # gripper
         for event_type, status in self.button.events():
             if (self.joycon.is_right() and event_type == 'plus' and status == 1) or (self.joycon.is_left() and event_type == 'minus' and status == 1):
                 self.reset_button = 1
+                # will re-calibrate joycon.
                 self.reset_joycon()
-            elif self.joycon.is_right() and event_type == 'a':
-                self.next_episode_button = status
 
-            elif self.joycon.is_right() and event_type == 'y':
-                # TODO: will be used to return to start position and Exit programe. kenn.
-                self.restart_episode_button = status
+            # TODO: for 2-wheels xlerobot, a,y,x,b are used for base-movement ctrl.
+            # elif self.joycon.is_right() and event_type == 'a':
+            #     self.next_episode_button = status
+            # elif self.joycon.is_right() and event_type == 'y':            #
+            #     self.restart_episode_button = status
 
             elif ((self.joycon.is_right() and event_type == 'zr') or (self.joycon.is_left() and event_type == 'zl')) and not self.change_down_to_gripper:
                 self.gripper_toggle_button = status
             elif ((self.joycon.is_right() and event_type == 'stick_r_btn') or (self.joycon.is_left() and event_type == 'stick_l_btn')) and self.change_down_to_gripper:
                 self.gripper_toggle_button = status
             # print(f'{event_type=}, {status=}')
+
+            # TODO: use left-joycon capture as 'exit'. kenn.
+            elif self.joycon.is_left() and event_type == 'capture':
+                self.restart_episode_button = status
             else: 
                 self.reset_button = 0
             
@@ -390,15 +396,15 @@ class JoyconRobotics:
             self.gripper_toggle_button = 0
 
         # record
-        if self.joycon.is_right():
-            if self.next_episode_button == 1:
-                self.button_control = 1
-            elif self.restart_episode_button == 1:
-                self.button_control = -1
-            elif self.reset_button == 1:
-                self.button_control = 8
-            else:
-                self.button_control = 0
+        # if self.joycon.is_right():
+        if self.next_episode_button == 1:
+            self.button_control = 1
+        elif self.restart_episode_button == 1:
+            self.button_control = -1
+        elif self.reset_button == 1:
+            self.button_control = 8
+        else:
+            self.button_control = 0
         
         return self.position, self.gripper_state, self.button_control
                         

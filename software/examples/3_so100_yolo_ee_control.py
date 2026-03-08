@@ -27,8 +27,8 @@ from lerobot.robots import (  # noqa: F401
 from lerobot.teleoperators.keyboard.teleop_keyboard import KeyboardTeleop
 from lerobot.robots.so_follower import (SO101Follower)
 from software.examples.example_utils import (SO101_arm_return_to_start_position,
-                                             inverse_kinematics,
-                                             keyboard_teleop_task)
+											 inverse_kinematics,
+											 keyboard_teleop_SO101arm_task)
 
 # Set the ultralytics logger level to WARNING or higher
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
@@ -403,12 +403,12 @@ def main():
     try:
 
         video_thread.start()
-        keyboard_teleop_task(p_control_loop=partial(p_control_loop,
-                                                    current_x=current_x,
-                                                    current_y=current_y,
-                                                    kp=0.3,
-                                                    control_freq=20)
-                             )
+        keyboard_teleop_SO101arm_task(p_control_loop=partial(p_control_loop,
+															 current_x=current_x,
+															 current_y=current_y,
+															 kp=0.3,
+															 control_freq=20)
+									  )
     except Exception as e:
         print(e)
         # traceback.print_exc()

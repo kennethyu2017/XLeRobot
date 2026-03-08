@@ -23,7 +23,7 @@ from lerobot.robots import (  # noqa: F401
 from lerobot.robots.so_follower import (SO101Follower)
 from lerobot.teleoperators.keyboard.teleop_keyboard import KeyboardTeleop
 from software.examples.example_utils import (SO101_arm_return_to_start_position, inverse_kinematics,
-                                             keyboard_teleop_task)
+											 keyboard_teleop_SO101arm_task)
 
 # def inverse_kinematics(x, y, l1=0.1159, l2=0.1350):
 #     """
@@ -265,12 +265,12 @@ def main():
     current_x, current_y = x0, y0
     print(f"Initialize end effector position: x={current_x:.4f}, y={current_y:.4f}")
 
-    keyboard_teleop_task(p_control_loop=partial(p_control_loop,
-                                                current_x=current_x,
-                                                current_y=current_y,
-                                                kp=0.3,
-                                                control_freq=20)
-                         )
+    keyboard_teleop_SO101arm_task(p_control_loop=partial(p_control_loop,
+														 current_x=current_x,
+														 current_y=current_y,
+														 kp=0.3,
+														 control_freq=20)
+								  )
 
 if __name__ == "__main__":
     main() 

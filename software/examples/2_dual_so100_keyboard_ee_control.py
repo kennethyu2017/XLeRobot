@@ -21,7 +21,7 @@ from lerobot.robots import (  # noqa: F401
 from lerobot.teleoperators.keyboard.teleop_keyboard import KeyboardTeleop
 from lerobot.robots.so_follower import (SO101Follower)
 from software.examples.example_utils import (SO101_arm_return_to_start_position, inverse_kinematics,
-                                             keyboard_teleop_task)
+											 keyboard_teleop_SO101arm_task)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -508,10 +508,10 @@ def main():
     }
 
     print(f"Initialize dual arm end effector positions: left_arm=({x0:.4f}, {y0:.4f}), right_arm=({x0:.4f}, {y0:.4f})")
-    keyboard_teleop_task(p_control_loop=partial(p_control_loop,
-                                                current_ee_xy=current_ee_xy,
-                                                kp=0.3,
-                                                control_freq=20))
+    keyboard_teleop_SO101arm_task(p_control_loop=partial(p_control_loop,
+														 current_ee_xy=current_ee_xy,
+														 kp=0.3,
+														 control_freq=20))
 
 if __name__ == "__main__":
     main() 

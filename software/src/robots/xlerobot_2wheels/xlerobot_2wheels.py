@@ -427,8 +427,8 @@ class XLerobot2Wheels(Robot):
         
         # Convert wheel speeds from rad/s to deg/s.
         # TODO: should set left wheel to rotate reverse. kenn.
-        left_wheel_degps = - left_wheel_speed * (180.0 / np.pi)
-        # left_wheel_degps = left_wheel_speed * (180.0 / np.pi)
+        # left_wheel_degps = - left_wheel_speed * (180.0 / np.pi)
+        left_wheel_degps = left_wheel_speed * (180.0 / np.pi)
         right_wheel_degps = right_wheel_speed * (180.0 / np.pi)
 
         # Scaling
@@ -582,7 +582,7 @@ class XLerobot2Wheels(Robot):
             base_goal_vel.get("x.vel", 0.0),
             base_goal_vel.get("theta.vel", 0.0),
         )
-        
+
         
         if self.config.max_relative_target is not None:
             # Read present positions for left arm, right arm, and head
